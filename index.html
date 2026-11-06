@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Timelet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --c-idle:#ececec; --c-focus:#ffffff;
+  --ink:#1e1e1e; --sub:rgba(0,0,0,.5); --line:rgba(0,0,0,.14);
+  --tick:rgba(0,0,0,.2); --hand:rgba(0,0,0,.72); --sec:rgba(0,0,0,.32); --wedge:rgba(0,0,0,.09); --arc:rgba(0,0,0,.16);
+  --w1:#B4E2EE; --w2:#72C8BA; --blob:rgba(255,255,255,.26);
+  --t-btn:#2B8C96; --t-ink:#ffffff;
+  --card:#ffffff; --field:#f1f1f1; --scrim:rgba(0,0,0,.3);
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --c-idle:#262626; --c-focus:#000000;
+    --ink:#ececec; --sub:rgba(255,255,255,.5); --line:rgba(255,255,255,.18);
+    --tick:rgba(255,255,255,.26); --hand:rgba(255,255,255,.82); --sec:rgba(255,255,255,.38); --wedge:rgba(255,255,255,.13); --arc:rgba(255,255,255,.2);
+    --w1:#2C7D93; --w2:#1C6A62; --blob:rgba(255,255,255,.08);
+    --t-btn:#4AB0BA; --t-ink:#06252a;
+    --card:#1a1a1a; --field:#272727; --scrim:rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --c-idle:#262626; --c-focus:#000000;
+  --ink:#ececec; --sub:rgba(255,255,255,.5); --line:rgba(255,255,255,.18);
+  --tick:rgba(255,255,255,.26); --hand:rgba(255,255,255,.82); --sec:rgba(255,255,255,.38); --wedge:rgba(255,255,255,.13); --arc:rgba(255,255,255,.2);
+  --w1:#2C7D93; --w2:#1C6A62; --blob:rgba(255,255,255,.08);
+  --t-btn:#4AB0BA; --t-ink:#06252a;
+  --card:#1a1a1a; --field:#272727; --scrim:rgba(0,0,0,.6);
+}
+*,*::before,*::after{box-sizing:inherit}
+[hidden]{display:none !important}
+html{height:100%;background:var(--c-idle);scroll-padding-top:env(safe-area-inset-top,0px);transition:background-color 1.2s ease}
+html[data-phase="focus"],html[data-phase="toBreak"],html[data-phase="toFocus"]{background:var(--c-focus)}
+html[data-phase="break"]{background:var(--w2)}
+body{
+  height:100%;margin:0;overflow:hidden;color:var(--ink);background:var(--bg);
+  font-family:"Noto Sans JP","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
+  -webkit-font-smoothing:antialiased;transition:background-color 1.2s ease;
+  --bg:var(--c-idle); --band:17vh;
+}
+body[data-phase="focus"],body[data-phase="toBreak"],body[data-phase="toFocus"]{--bg:var(--c-focus)}
+
+/* wave: masked by its own waveform; rises during focus, fills the screen during break */
+.wave{
+  position:fixed;left:0;right:0;bottom:-20px;z-index:2;height:calc(var(--lvl,0vh) + 20px);
+  background:linear-gradient(180deg,var(--w1),var(--w2));
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 24' preserveAspectRatio='none'%3E%3Cpath d='M0 24V12C150 0 300 0 450 12S750 24 900 12S1100 2 1200 10V24Z'/%3E%3C/svg%3E") 0 0 / 100% 24px no-repeat, linear-gradient(#000,#000) 0 23px / 100% calc(100% - 23px) no-repeat;
+          mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 24' preserveAspectRatio='none'%3E%3Cpath d='M0 24V12C150 0 300 0 450 12S750 24 900 12S1100 2 1200 10V24Z'/%3E%3C/svg%3E") 0 0 / 100% 24px no-repeat, linear-gradient(#000,#000) 0 23px / 100% calc(100% - 23px) no-repeat;
+  transition:height 1.5s linear,opacity 1.6s ease;pointer-events:none;
+}
+.wave.fill{transition:height 1.9s cubic-bezier(.5,0,.3,1),opacity 1.6s ease}
+body[data-phase="idle"] .wave,body[data-phase="toFocus"] .wave{opacity:0}
+body[data-phase="break"] .wave{z-index:0}
+.bandbtn{
+  position:absolute;left:50%;bottom:calc(20px + var(--band) * .5);transform:translate(-50%,50%);
+  font:inherit;font-weight:900;font-size:clamp(1.15rem,5.4vw,2.3rem);color:var(--ink);
+  background:transparent;border:0;border-radius:999px;padding:.45em 1.3em;
+  box-shadow:inset 0 0 0 1.5px var(--line);cursor:pointer;white-space:nowrap;
+  transition:opacity 1s;pointer-events:none;
+}
+.wave.live .bandbtn{pointer-events:auto}
+body[data-phase="toBreak"] .bandbtn{background:var(--t-btn);color:var(--t-ink);box-shadow:none}
+body[data-phase="break"] .bandbtn{opacity:0;pointer-events:none}
+.wave.jig{animation:jig 2s ease-out}
+@keyframes jig{0%{transform:translateY(0)}10%{transform:translateY(-16px)}24%{transform:translateY(9px)}38%{transform:translateY(-5px)}52%{transform:translateY(3px)}68%{transform:translateY(-1px)}100%{transform:translateY(0)}}
+
+.stage{
+  position:relative;z-index:1;height:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:clamp(12px,3vh,36px);padding:56px 7vw 72px;text-align:center;
+}
+body[data-phase="focus"] .stage,body[data-phase="toBreak"] .stage{padding-bottom:calc(var(--band) + 24px)}
+
+/* clock */
+.clockwrap{position:relative;width:min(86vw,52vh);aspect-ratio:1/1;flex:none}
+.clockwrap.puff{animation:puff 2.6s ease-in-out}
+@keyframes puff{0%{transform:scale(1)}40%{transform:scale(1.045)}100%{transform:scale(1)}}
+.clock{position:absolute;inset:0;width:100%;height:100%}
+.clock .tick{stroke:var(--tick)}
+.clock .hand{stroke:var(--hand);stroke-linecap:round}
+.clock .sec{stroke:var(--sec);stroke-linecap:round}
+.clock .pin{fill:var(--hand)}
+.clock .wedge{fill:var(--wedge);transition:opacity .6s}
+.clock .next{fill:none;stroke:var(--arc);stroke-width:2.2;stroke-linecap:round}
+body.paused .clock .wedge{opacity:.45}
+
+.blob{
+  position:absolute;left:19%;top:19%;width:62%;height:62%;
+  background:var(--blob);opacity:0;transition:opacity 1.5s ease;transform:scale(.55);
+  border-radius:58% 42% 52% 48% / 46% 56% 44% 54%;
+}
+body[data-phase="break"].breath .blob{opacity:1}
+body[data-phase="break"].breath .b1{animation:br1 11s ease-in-out infinite}
+body[data-phase="break"].breath .b2{animation:br2 11s ease-in-out infinite}
+@keyframes br1{
+  0%  {transform:scale(.55) rotate(0deg);  border-radius:58% 42% 52% 48% / 46% 56% 44% 54%}
+  45% {transform:scale(1)   rotate(16deg); border-radius:44% 56% 46% 54% / 57% 43% 58% 42%}
+  55% {transform:scale(1)   rotate(20deg); border-radius:48% 52% 41% 59% / 52% 48% 55% 45%}
+  100%{transform:scale(.55) rotate(0deg);  border-radius:58% 42% 52% 48% / 46% 56% 44% 54%}
+}
+@keyframes br2{
+  0%  {transform:scale(.5)  rotate(0deg);   border-radius:45% 55% 60% 40% / 55% 45% 52% 48%}
+  45% {transform:scale(.96) rotate(-22deg); border-radius:57% 43% 44% 56% / 42% 58% 46% 54%}
+  55% {transform:scale(.97) rotate(-26deg); border-radius:52% 48% 57% 43% / 47% 53% 41% 59%}
+  100%{transform:scale(.5)  rotate(0deg);   border-radius:45% 55% 60% 40% / 55% 45% 52% 48%}
+}
+
+/* text */
+.label{position:relative;display:inline-block;margin:0;font-weight:900;line-height:1.22;font-size:clamp(1.7rem,8.6vw,4.4rem);max-width:15em;overflow-wrap:anywhere}
+#labelText{outline:none;border-radius:6px;cursor:default}
+#labelText[contenteditable="true"],#labelText[contenteditable="plaintext-only"]{box-shadow:0 2px 0 var(--line);cursor:text}
+.pencil{
+  position:absolute;left:100%;top:50%;transform:translate(.15em,-50%);
+  font:inherit;font-size:.48em;width:1.7em;height:1.7em;display:grid;place-items:center;border:0;padding:0;
+  background:transparent;color:var(--sub);cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s;
+}
+.pencil svg{width:1em;height:1em}
+body.ui[data-phase="focus"] .pencil{opacity:1;pointer-events:auto}
+body.editing .pencil{opacity:0;pointer-events:none}
+.note{margin:0;min-height:2.4em;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.6em;font-weight:700;font-size:clamp(.95rem,4.2vw,1.5rem);color:var(--sub)}
+.mini{font:inherit;font-size:.9em;font-weight:700;color:var(--ink);background:transparent;border:0;border-radius:999px;padding:.3em .9em;box-shadow:inset 0 0 0 1.5px var(--line);cursor:pointer;min-height:36px}
+.idle{width:min(100%,20em);display:flex;flex-direction:column;align-items:center}
+.task{
+  width:100%;background:transparent;border:0;border-bottom:2px solid var(--line);
+  color:var(--ink);font:inherit;font-weight:900;font-size:clamp(1.5rem,7.4vw,3.6rem);
+  line-height:1.3;padding:.15em 0;text-align:center;outline:none;border-radius:0;
+}
+.task::placeholder{color:var(--line)}
+.hint{margin:.7em 0 0;color:var(--sub);font-size:clamp(.85rem,3.5vw,1.1rem);font-weight:500}
+
+.actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;font-size:clamp(1rem,4.4vw,1.5rem)}
+.actions:empty{display:none}
+.btn{
+  font:inherit;font-weight:700;border:0;border-radius:999px;cursor:pointer;
+  padding:.72em 1.5em;background:var(--ink);color:var(--c-idle);min-height:48px;
+}
+.btn.ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--line)}
+.btn.teal{background:var(--t-btn);color:var(--t-ink)}
+.btn:focus-visible,.icon:focus-visible,.task:focus-visible,.pencil:focus-visible{outline:3px solid var(--sub);outline-offset:3px}
+
+/* icons */
+.icon{
+  position:fixed;z-index:2;width:44px;height:44px;border-radius:50%;border:0;cursor:pointer;
+  display:grid;place-items:center;background:transparent;color:var(--sub);
+  opacity:.45;transition:opacity .4s;
+}
+body.ui .icon{opacity:1}
+.icon svg{width:24px;height:24px}
+.gear{top:calc(10px + env(safe-area-inset-top,0px));right:12px}
+.ctl{top:calc(10px + env(safe-area-inset-top,0px));display:none;background:var(--line)}
+.ctl.pause{left:12px}.ctl.stop{left:64px}
+body[data-phase="focus"] .ctl,body[data-phase="break"] .ctl{display:grid}
+body:not(.ui) .ctl{opacity:0;pointer-events:none}
+
+/* settings */
+.panel{position:fixed;inset:0;z-index:5;display:none;place-items:center;background:var(--scrim)}
+.panel.open{display:grid}
+.card{background:var(--card);color:var(--ink);border-radius:18px;padding:24px 24px 20px;width:min(90vw,370px);font-size:16px}
+.card h2{margin:0 0 12px;font-size:18px;font-weight:700}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.row input[type=number]{width:70px;background:var(--field);color:var(--ink);border:0;border-radius:8px;padding:7px 8px;font:inherit;text-align:right}
+.row input[type=checkbox]{width:22px;height:22px;accent-color:#2B8C96}
+.card .btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.card .btn{font-size:15px;padding:.6em 1.2em;min-height:42px}
+
+@media (prefers-reduced-motion:reduce){
+  body,.wave,.wave.fill{transition:none}
+  .clockwrap.puff{animation:fade 2.6s ease-in-out}
+  @keyframes fade{40%{opacity:.55}}
+  .wave.jig{animation:none}
+  body[data-phase="break"].breath .blob{animation-duration:16s}
+}
+</style>
+</head>
+<body data-phase="idle">
+<div id="wave" class="wave">
+  <button id="bandBtn" class="bandbtn" tabindex="-1">ひとやすみする</button>
+</div>
+
+<main class="stage">
+  <div id="clockwrap" class="clockwrap" aria-hidden="true">
+    <div class="blob b1"></div><div class="blob b2"></div>
+    <svg class="clock" viewBox="0 0 200 200">
+      <path id="wedge" class="wedge" d=""/>
+      <path id="next" class="next" d=""/>
+      <g id="ticks"></g>
+      <line id="hh" class="hand" x1="100" y1="100" x2="100" y2="54" stroke-width="6.5"/>
+      <line id="mh" class="hand" x1="100" y1="100" x2="100" y2="26" stroke-width="4.5"/>
+      <line id="sh" class="sec" x1="100" y1="112" x2="100" y2="16" stroke-width="1.5"/>
+      <circle class="pin" cx="100" cy="100" r="5"/>
+    </svg>
+  </div>
+
+  <div id="idleBox" class="idle">
+    <input id="task" class="task" maxlength="40" placeholder="いま集中すること" aria-label="いま集中すること" autocomplete="off" enterkeyhint="go">
+    <p class="hint">書かなくてもはじめられます</p>
+  </div>
+  <h1 id="label" class="label" hidden><span id="labelText"></span><button id="pencil" class="pencil" aria-label="集中することを変更"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button></h1>
+  <p id="note" class="note" hidden aria-live="polite"></p>
+  <div id="actions" class="actions"></div>
+</main>
+
+<button id="gear" class="icon gear" aria-label="設定">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+</button>
+<button id="pause" class="icon ctl pause" aria-label="一時停止"></button>
+<button id="stop" class="icon ctl stop" aria-label="おわる">
+  <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+</button>
+
+<div id="panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="ptitle">
+  <div class="card">
+    <h2 id="ptitle">設定</h2>
+    <label class="row">集中（分）<input id="cFocus" type="number" min="1" max="60" inputmode="numeric"></label>
+    <label class="row">ひとやすみ（分）<input id="cBreak" type="number" min="1" max="30" inputmode="numeric"></label>
+    <label class="row">「あと少しだけ」（分）<input id="cExt" type="number" min="1" max="15" inputmode="numeric"></label>
+    <label class="row">ひとやすみ中の深呼吸ガイド<input id="cBreath" type="checkbox"></label>
+    <label class="row">音<input id="cSound" type="checkbox"></label>
+    <div class="btns">
+      <button id="jump" class="btn ghost">残り3分へ</button>
+      <button id="fs" class="btn ghost">全画面</button>
+      <button id="close" class="btn">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const body = document.body;
+  const store = {
+    get(k,d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+    set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+  };
+  const cfg = Object.assign({focus:25, brk:5, ext:5, sound:true, breath:true}, store.get('tl-cfg', {}));
+  const S = { phase:'idle', task: store.get('tl-task',''), end:0, total:1, pausedLeft:null, extUsed:false, lastM:null, soon:false };
+  $('task').value = S.task;
+  body.classList.toggle('breath', !!cfg.breath);
+
+  // ticks
+  const tg = $('ticks');
+  for(let i=0;i<12;i++){
+    const major = i%3===0, a = i*30*Math.PI/180, r1 = major ? 74 : 82, r2 = 91;
+    const l = document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1', 100+r1*Math.sin(a)); l.setAttribute('y1', 100-r1*Math.cos(a));
+    l.setAttribute('x2', 100+r2*Math.sin(a)); l.setAttribute('y2', 100-r2*Math.cos(a));
+    l.setAttribute('stroke-width', major ? 3.2 : 2); l.setAttribute('class','tick');
+    tg.appendChild(l);
+  }
+
+  // sound
+  let ac = null;
+  function unlockAudio(){ try{ ac = ac || new (window.AudioContext||window.webkitAudioContext)(); if(ac.state==='suspended') ac.resume(); }catch(e){} }
+  function chime(soft){
+    if(!cfg.sound || !ac) return;
+    try{
+      const t = ac.currentTime, notes = soft ? [[880,0]] : [[659.25,0],[880,.22]];
+      notes.forEach(([f,d])=>{
+        const o = ac.createOscillator(), g = ac.createGain(), peak = soft ? .035 : .1;
+        o.type='sine'; o.frequency.value=f;
+        g.gain.setValueAtTime(.0001,t+d);
+        g.gain.exponentialRampToValueAtTime(peak,t+d+.03);
+        g.gain.exponentialRampToValueAtTime(.0001,t+d+1.9);
+        o.connect(g); g.connect(ac.destination); o.start(t+d); o.stop(t+d+2);
+      });
+    }catch(e){}
+  }
+
+  // screen awake
+  let lock = null;
+  async function wake(on){
+    try{
+      if(on && 'wakeLock' in navigator && !lock){ lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release',()=>{lock=null}); }
+      if(!on && lock){ await lock.release(); lock=null; }
+    }catch(e){}
+  }
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && S.phase!=='idle') wake(true); });
+
+  const taskLabel = () => S.task.trim() || '集中する';
+  const ms2 = ms => { const s = Math.max(0, Math.ceil(ms/1000)); return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); };
+  const left = () => S.pausedLeft != null ? S.pausedLeft : S.end - Date.now();
+
+  function restart(el, cls){ el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+  $('clockwrap').addEventListener('animationend', e=>{ if(e.target.id==='clockwrap') e.target.classList.remove('puff'); });
+  $('wave').addEventListener('animationend', e=>{ if(e.target.id==='wave') $('wave').classList.remove('jig'); });
+
+  // wave height
+  function setWave(vh, fill){
+    const w = $('wave');
+    w.classList.toggle('fill', !!fill);
+    w.style.setProperty('--lvl', vh + 'vh');
+    w.classList.toggle('live', (S.phase==='focus' && vh >= 8) || S.phase==='toBreak');
+  }
+
+  // reminders after a timer ends
+  let remindT = null;
+  function remind(on){
+    clearInterval(remindT); remindT = null;
+    if(on) remindT = setInterval(()=>{
+      chime(false);
+      restart($('clockwrap'),'puff');
+      if(S.phase==='toBreak') restart($('wave'),'jig');
+    }, 30000);
+  }
+
+  function begin(kind, minutes){
+    unlockAudio();
+    S.end = Date.now() + minutes*60000; S.total = minutes; S.pausedLeft = null; S.lastM = null; S.soon = false;
+    body.classList.remove('paused');
+    setPhase(kind); wake(true);
+  }
+  function startFocus(fresh){ if(fresh) S.extUsed = false; begin('focus', fresh ? cfg.focus : cfg.ext); }
+  function startFromIdle(){ S.task = $('task').value; store.set('tl-task', S.task); startFocus(true); }
+  function extendNow(){
+    if(S.extUsed) return;
+    S.extUsed = true; S.end += cfg.ext*60000; S.total += cfg.ext; S.lastM = null; S.soon = false;
+    render();
+  }
+  function togglePause(){
+    if(S.phase!=='focus' && S.phase!=='break') return;
+    if(S.pausedLeft==null){ S.pausedLeft = left(); body.classList.add('paused'); }
+    else { S.end = Date.now() + S.pausedLeft; S.pausedLeft = null; body.classList.remove('paused'); }
+    render();
+  }
+  function stop(){ S.pausedLeft=null; body.classList.remove('paused'); setPhase('idle'); wake(false); }
+  function setPhase(p){
+    S.phase = p; body.dataset.phase = p; document.documentElement.dataset.phase = p;
+    remind(p==='toBreak' || p==='toFocus');
+    if(p==='break') setWave(112, true);
+    else if(p==='toBreak') setWave(17, false);
+    else if(p==='toFocus' || p==='idle') setWave(0, true);
+    else if(p==='focus') setWave(0, false);
+    render();
+  }
+
+  function button(text, fn, cls){
+    const b = document.createElement('button'); b.className = 'btn' + (cls ? ' '+cls : ''); b.textContent = text;
+    b.addEventListener('click', fn); return b;
+  }
+  function noteWithExt(text, fn){
+    const n = $('note'); n.replaceChildren(document.createTextNode(text));
+    if(!S.extUsed){ const b = document.createElement('button'); b.className = 'mini'; b.textContent = '+'+cfg.ext+'分'; b.setAttribute('aria-label', cfg.ext+'分のばす'); b.addEventListener('click', fn); n.append(b); }
+  }
+
+  function render(){
+    const p = S.phase, note = $('note'), act = $('actions'), lt = $('labelText');
+    $('idleBox').hidden = p!=='idle';
+    $('label').hidden = p==='idle'; note.hidden = p==='idle';
+    act.replaceChildren(); note.textContent = '';
+    const paused = S.pausedLeft!=null;
+    if(p==='idle'){
+      act.append(button('はじめる（'+cfg.focus+'分）', startFromIdle));
+      document.title = 'Timelet';
+    }else if(p==='focus'){
+      if(!body.classList.contains('editing')) lt.textContent = taskLabel();
+      if(paused) note.textContent = '一時停止中';
+      else if(S.soon) noteWithExt('もうすぐひとやすみ', extendNow);
+    }else if(p==='break'){
+      lt.textContent = 'ひとやすみ';
+      if(paused) note.textContent = '一時停止中';
+      else if(S.soon) note.textContent = 'もうすぐもどる時間';
+    }else if(p==='toBreak'){
+      lt.textContent = taskLabel();
+      noteWithExt('ひとやすみの時間', ()=>{ S.extUsed = true; begin('focus', cfg.ext); });
+      document.title = 'ひとやすみの時間';
+    }else if(p==='toFocus'){
+      lt.textContent = 'もどる時間';
+      note.textContent = 'つぎ：' + taskLabel();
+      act.append(button('もどる', ()=>startFocus(true)));
+      act.append(button('ここでおわる', stop, 'ghost'));
+      document.title = 'もどる時間';
+    }
+    $('pause').setAttribute('aria-label', paused ? '再開' : '一時停止');
+    $('pause').innerHTML = paused
+      ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
+    update();
+  }
+
+  function update(){
+    const p = S.phase;
+    if(p!=='focus' && p!=='break') return;
+    const l = left(), paused = S.pausedLeft!=null;
+    if(l <= 0 && !paused){ if(body.classList.contains('editing')) $('labelText').blur(); chime(false); setPhase(p==='focus' ? 'toBreak' : 'toFocus'); return; }
+
+    if(!paused){
+      const m = Math.ceil(l/60000);
+      if(S.lastM!=null && m < S.lastM && m <= 5){
+        restart($('clockwrap'),'puff');
+        if(m===1){ chime(true); if(p==='focus') restart($('wave'),'jig'); }
+      }
+      S.lastM = m;
+      const soon = l <= 60000;
+      if(soon !== S.soon){ S.soon = soon; render(); return; }
+    }
+    if(p==='focus'){
+      const prog = 1 - l/(S.total*60000);
+      setWave((prog*17).toFixed(2), false);
+    }
+    document.title = (paused ? '停止中' : ms2(l)) + ' ' + (p==='focus' ? taskLabel() : 'ひとやすみ');
+  }
+  setInterval(update, 250);
+
+  // clock
+  const pt = (a,r) => [100 + r*Math.sin(a*Math.PI/180), 100 - r*Math.cos(a*Math.PI/180)];
+  function wedgePath(a0, sweep, r){
+    if(sweep <= 0.05) return '';
+    if(sweep >= 359.9) return `M100 ${100-r} A${r} ${r} 0 1 1 100 ${100+r} A${r} ${r} 0 1 1 100 ${100-r} Z`;
+    const [x0,y0] = pt(a0,r), [x1,y1] = pt(a0+sweep,r);
+    return `M100 100 L${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${sweep>180?1:0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z`;
+  }
+  function arcPath(a0, sweep, r){
+    sweep = Math.min(sweep, 356);
+    if(sweep <= 0.5) return '';
+    const [x0,y0] = pt(a0+1.5,r), [x1,y1] = pt(a0+sweep,r);
+    return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${sweep>180?1:0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+  }
+  function draw(){
+    const d = new Date(), s = d.getSeconds()+d.getMilliseconds()/1000, m = d.getMinutes()+s/60, h = (d.getHours()%12)+m/60;
+    $('hh').setAttribute('transform', `rotate(${h*30} 100 100)`);
+    $('mh').setAttribute('transform', `rotate(${m*6} 100 100)`);
+    $('sh').setAttribute('transform', `rotate(${Math.floor(s)*6} 100 100)`);
+    let wp = '', np = '';
+    if(S.phase==='focus' || S.phase==='break'){
+      const sweep = Math.min(360, Math.max(0,left())/60000*6);
+      wp = wedgePath(m*6, sweep, 68);
+      const nextMin = S.phase==='focus' ? cfg.brk : cfg.focus;
+      np = arcPath(m*6+sweep, nextMin*6, 96);
+    }
+    $('wedge').setAttribute('d', wp);
+    $('next').setAttribute('d', np);
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+
+  // controls show/hide (first tap reveals, second tap acts)
+  let uiT, wasUI = false;
+  window.addEventListener('pointerdown', ()=>{ wasUI = body.classList.contains('ui'); }, {capture:true, passive:true});
+  function hideLater(){ clearTimeout(uiT); uiT = setTimeout(()=>{ if(!body.classList.contains('editing')) body.classList.remove('ui'); }, 4000); }
+  function showUI(){ body.classList.add('ui'); hideLater(); }
+  ['pointermove','pointerdown','keydown'].forEach(e=>window.addEventListener(e, showUI, {passive:true}));
+
+  // edit focus label
+  const lt = $('labelText');
+  function startEdit(){
+    if(S.phase!=='focus' || body.classList.contains('editing')) return;
+    body.classList.add('editing','ui');
+    lt.textContent = S.task.trim();
+    try{ lt.contentEditable = 'plaintext-only'; }catch(e){ lt.contentEditable = 'true'; }
+    if(lt.contentEditable !== 'plaintext-only') lt.contentEditable = 'true';
+    lt.focus();
+    const r = document.createRange(); r.selectNodeContents(lt);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  }
+  function endEdit(){
+    if(!body.classList.contains('editing')) return;
+    S.task = lt.textContent.replace(/\s+/g,' ').trim().slice(0,40);
+    store.set('tl-task', S.task); $('task').value = S.task;
+    lt.contentEditable = 'false';
+    body.classList.remove('editing'); hideLater(); render();
+  }
+  lt.addEventListener('click', ()=>{ if(wasUI) startEdit(); });
+  $('pencil').addEventListener('click', e=>{ e.stopPropagation(); startEdit(); });
+  lt.addEventListener('keydown', e=>{
+    if(e.key==='Enter' && !e.isComposing){ e.preventDefault(); lt.blur(); }
+    if(e.key==='Escape'){ lt.textContent = S.task; lt.blur(); }
+  });
+  lt.addEventListener('blur', endEdit);
+
+  $('bandBtn').addEventListener('click', ()=>{
+    if(S.phase==='toBreak' || (S.phase==='focus' && wasUI)){ if(body.classList.contains('editing')) lt.blur(); begin('break', cfg.brk); }
+  });
+  $('task').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.isComposing){ e.preventDefault(); startFromIdle(); } });
+  $('pause').addEventListener('click', togglePause);
+  $('stop').addEventListener('click', stop);
+  window.addEventListener('keydown', e=>{
+    if($('panel').classList.contains('open')){ if(e.key==='Escape') closePanel(); return; }
+    if(e.target.tagName==='INPUT' || e.target.tagName==='BUTTON' || e.target.isContentEditable) return;
+    if(e.code==='Space'){
+      e.preventDefault();
+      const first = $('actions').querySelector('button');
+      if(first) first.click(); else togglePause();
+    }
+  });
+
+  // settings
+  const clamp = (v,a,b,d) => { v = parseInt(v,10); return isNaN(v) ? d : Math.min(b, Math.max(a, v)); };
+  function openPanel(){
+    $('cFocus').value = cfg.focus; $('cBreak').value = cfg.brk; $('cExt').value = cfg.ext;
+    $('cSound').checked = cfg.sound; $('cBreath').checked = cfg.breath;
+    $('panel').classList.add('open'); $('close').focus();
+  }
+  function closePanel(){
+    cfg.focus = clamp($('cFocus').value,1,60,25);
+    cfg.brk = clamp($('cBreak').value,1,30,5);
+    cfg.ext = clamp($('cExt').value,1,15,5);
+    cfg.sound = $('cSound').checked; cfg.breath = $('cBreath').checked;
+    body.classList.toggle('breath', cfg.breath);
+    store.set('tl-cfg', cfg);
+    $('panel').classList.remove('open'); render();
+  }
+  $('gear').addEventListener('click', openPanel);
+  $('close').addEventListener('click', closePanel);
+  $('panel').addEventListener('click', e=>{ if(e.target.id==='panel') closePanel(); });
+  $('jump').addEventListener('click', ()=>{
+    if(S.phase!=='focus' && S.phase!=='break'){ S.task = $('task').value || S.task; store.set('tl-task', S.task); startFocus(true); }
+    S.end = Date.now() + 3*60000; S.pausedLeft = null; S.lastM = null; S.soon = false;
+    if(S.total < 3) S.total = 3;
+    body.classList.remove('paused');
+    closePanel();
+  });
+  if(!document.documentElement.requestFullscreen) $('fs').hidden = true;
+  $('fs').addEventListener('click', ()=>{ try{ if(document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); }catch(e){} });
+
+  render();
+})();
+</script>
+</body>
+</html>
