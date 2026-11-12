@@ -286,6 +286,120 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
 <!-- コピー結果などの短い通知（音・点滅なし） -->
 <div id="toast" class="toast" aria-live="polite"></div>
 
+<!--
+  画面の文言はここだけ。"lang" を "ja" / "en" にすると切り替わる（直すのも、この表だけ）。
+  {1} {2} {3} は、数字などが入る場所（start={1}:分、extNote={1}:回数 {2}:合計 {3}:+の分、copied={1}:行数）。
+  Done / Focused / Unfocused / Focus / Rested / Restless は、ja・en 共通（渚さんが決めた文言）。Done と Focus は、読み上げ用で画面には出ない。
+  履歴の「種類」の名前（KIND）と、履歴の詳細（LOG）は、このブロックと無関係（スクリプトの冒頭）。
+-->
+<script type="application/json" id="tl-text">
+{
+ "lang": "ja",
+ "ja": {
+  "appName": "Timelet",
+  "defaultTask": "集中する",
+  "idlePlaceholder": "いま集中すること",
+  "idleHint": "書かなくてもはじめられます",
+  "start": "はじめる（{1}分）",
+  "rest": "ひとやすみする",
+  "endHere": "ここでおわる",
+  "restName": "ひとやすみ",
+  "restTime": "ひとやすみの時間",
+  "backTime": "もどる時間",
+  "soonRest": "もうすぐひとやすみ",
+  "soonBack": "もうすぐもどる時間",
+  "paused": "一時停止中",
+  "pausedTitle": "停止中",
+  "next": "つぎ：",
+  "ext": "+{1}分",
+  "ariaExt": "{1}分のばす",
+  "extNote": "+{3}分 × {1}・合計{2}分",
+  "ariaEdit": "集中することを変更",
+  "ariaSettings": "設定",
+  "ariaPause": "一時停止",
+  "ariaResume": "再開",
+  "ariaStop": "おわる",
+  "ariaInterrupt": "中断",
+  "setTitle": "設定",
+  "setFocus": "集中（分）",
+  "setBreak": "ひとやすみ（分）",
+  "setExt": "「あと少しだけ」（分）",
+  "setExtNote": "「+分」の回数を知らせる（回）",
+  "setBreath": "ひとやすみ中の深呼吸ガイド",
+  "setSound": "音",
+  "setDevice": "端末名",
+  "copyLog": "履歴をコピー",
+  "copyPrev": "前回ぶんをもう一度",
+  "jump": "残り3分へ",
+  "fs": "全画面",
+  "close": "閉じる",
+  "copied": "{1}行コピーしました",
+  "copyNone": "新しい行はありません",
+  "copyFail": "コピーできませんでした",
+  "memoPlaceholder": "メモ",
+  "memoSend": "記録",
+  "memoSent": "記録しました",
+  "doneHead": "Done",
+  "focused": "Focused",
+  "unfocused": "Unfocused",
+  "focusHead": "Focus",
+  "rested": "Rested",
+  "restless": "Restless"
+ },
+ "en": {
+  "appName": "Timelet",
+  "defaultTask": "In Session",
+  "idlePlaceholder": "Focus on...",
+  "idleHint": "書かなくてもはじめられます",
+  "start": "Start ({1}m)",
+  "rest": "Take a Break",
+  "endHere": "Finish up",
+  "restName": "Break",
+  "restTime": "It's Time for a Break",
+  "backTime": "It's Time to Focus",
+  "soonRest": "Break Coming up",
+  "soonBack": "Focus Coming up",
+  "paused": "Paused",
+  "pausedTitle": "Paused",
+  "next": "Next: ",
+  "ext": "+{1}m",
+  "ariaExt": "{1}分のばす",
+  "extNote": "+{3}m x {1} : {2}m ext.",
+  "ariaEdit": "集中することを変更",
+  "ariaSettings": "設定",
+  "ariaPause": "一時停止",
+  "ariaResume": "再開",
+  "ariaStop": "おわる",
+  "ariaInterrupt": "中断",
+  "setTitle": "設定",
+  "setFocus": "集中（分）",
+  "setBreak": "ひとやすみ（分）",
+  "setExt": "「あと少しだけ」（分）",
+  "setExtNote": "「+分」の回数を知らせる（回）",
+  "setBreath": "ひとやすみ中の深呼吸ガイド",
+  "setSound": "音",
+  "setDevice": "Device name",
+  "copyLog": "履歴をコピー",
+  "copyPrev": "前回ぶんをもう一度",
+  "jump": "残り3分へ",
+  "fs": "全画面",
+  "close": "閉じる",
+  "copied": "{1}行コピーしました",
+  "copyNone": "新しい行はありません",
+  "copyFail": "コピーできませんでした",
+  "memoPlaceholder": "Note",
+  "memoSend": "Send",
+  "memoSent": "Logged",
+  "doneHead": "Done",
+  "focused": "Focused",
+  "unfocused": "Unfocused",
+  "focusHead": "Focus",
+  "rested": "Rested",
+  "restless": "Restless"
+ }
+}
+</script>
+
 <script>
 (function(){
   // ================= 定数表（文言と履歴の種類はここだけ） =================
@@ -300,50 +414,12 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     labelChanged:'label_changed', memo:'memo',
     pause:'pause', resume:'resume', stop:'stop', debugJump:'debug_jump'
   });
-  // 画面の文言（切り替え：下の LANG の1行）。静的なものは data-t / data-tp / data-ta（本文／placeholder／aria-label）で HTML に流し込む。
-  // 英語は 09_en-table.md の「英語の提案」。渚さんの校閲を反映するまでは LANG='ja' のまま（画面は変わらない）。
-  const LANG = 'ja';   // 'ja' | 'en'
-  // 二値の文言は、渚さんが決めたもの。日本語のときも英語のまま（ja・en 共通）
-  const BIN = { doneHead:'Done', focused:'Focused', unfocused:'Unfocused', focusHead:'Focus', rested:'Rested', restless:'Restless' };
-  const TXT_SET = {
-    ja: Object.assign({
-      appName:'Timelet', defaultTask:'集中する',
-      idlePlaceholder:'いま集中すること', idleHint:'書かなくてもはじめられます',
-      start:n=>'はじめる（'+n+'分）',
-      rest:'ひとやすみする', endHere:'ここでおわる',
-      restName:'ひとやすみ', restTime:'ひとやすみの時間', backTime:'もどる時間',
-      soonRest:'もうすぐひとやすみ', soonBack:'もうすぐもどる時間',
-      paused:'一時停止中', pausedTitle:'停止中', next:'つぎ：',
-      ext:n=>'+'+n+'分', ariaExt:n=>n+'分のばす',
-      extNote:(n,sum,ext)=>'+'+ext+'分 × '+n+'・合計'+sum+'分',   // 回数がしきい値以上のとき、補助の文字で事実だけ
-      ariaEdit:'集中することを変更', ariaSettings:'設定', ariaPause:'一時停止', ariaResume:'再開', ariaStop:'おわる', ariaInterrupt:'中断',
-      setTitle:'設定', setFocus:'集中（分）', setBreak:'ひとやすみ（分）', setExt:'「あと少しだけ」（分）',
-      setExtNote:'「+分」の回数を知らせる（回）',
-      setBreath:'ひとやすみ中の深呼吸ガイド', setSound:'音', setDevice:'端末名',
-      copyLog:'履歴をコピー', copyPrev:'前回ぶんをもう一度', jump:'残り3分へ', fs:'全画面', close:'閉じる',
-      copied:n=>n+'行コピーしました', copyNone:'新しい行はありません', copyFail:'コピーできませんでした',
-      memoPlaceholder:'メモ', memoSend:'記録', memoSent:'記録しました'
-    }, BIN),
-    en: Object.assign({
-      appName:'Timelet', defaultTask:'集中する',   // 既定の名前は履歴にも入るため、日本語のまま（要判断）
-      idlePlaceholder:'What are you focusing on?', idleHint:'Optional — you can just start',
-      start:n=>'Start ('+n+' min)',
-      rest:'Take a break', endHere:'End here',
-      restName:'Break', restTime:'Time for a break', backTime:'Time to focus',
-      soonRest:'Break coming up', soonBack:'Focus coming up',
-      paused:'Paused', pausedTitle:'Paused', next:'Next: ',
-      ext:n=>'+'+n+' min', ariaExt:n=>'Extend by '+n+' min',
-      extNote:(n,sum,ext)=>'+'+ext+' min × '+n+' · total '+sum+' min',
-      ariaEdit:'Change what you focus on', ariaSettings:'Settings', ariaPause:'Pause', ariaResume:'Resume', ariaStop:'End', ariaInterrupt:'Cut short',
-      setTitle:'Settings', setFocus:'Focus (min)', setBreak:'Break (min)', setExt:'“Just a bit more” (min)',
-      setExtNote:'Note after this many extensions',
-      setBreath:'Breathing guide during breaks', setSound:'Sound', setDevice:'Device name',
-      copyLog:'Copy history', copyPrev:'Copy last batch again', jump:'Jump to 3 min left', fs:'Fullscreen', close:'Close',
-      copied:n=>'Copied '+n+(n===1 ? ' line' : ' lines'), copyNone:'No new lines', copyFail:'Couldn’t copy',
-      memoPlaceholder:'Note', memoSend:'Log', memoSent:'Logged'
-    }, BIN)
-  };
-  const TXT = TXT_SET[LANG];
+  // 画面の文言は、上の <script id="tl-text">（JSON）にある。静的なものは data-t / data-tp / data-ta（本文／placeholder／aria-label）で HTML に流し込む。
+  const TEXT = JSON.parse(document.getElementById('tl-text').textContent);
+  const LANG = TEXT.lang;   // 'ja' | 'en'
+  // {1}{2}{3} を含む文言は、引数を順に差し込む関数にする（start(n)、extNote(n,sum,ext) など）
+  const TXT = {};
+  Object.entries(TEXT[LANG]).forEach(([k,v])=>{ TXT[k] = /\{\d\}/.test(v) ? (...a)=>v.replace(/\{(\d)\}/g,(m,i)=>a[i-1]) : v; });
   document.documentElement.lang = LANG;
   // 履歴の詳細（読む人のために、LANG に関係なく日本語のまま）。種類の名前（KIND）とも別
   const LOG = {
