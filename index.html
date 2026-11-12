@@ -70,18 +70,17 @@ body[data-phase="break"] .wave{z-index:0}
 }
 .wave.live .bandbtn{pointer-events:auto}
 body[data-phase="toBreak"] .bandbtn{display:none}
-/* 二値：ひとつのカプセルを半分に割る。2つの半分は同じ見た目の重さ（片方を強調・グレーにしない） */
+/* 二値：ひとつのカプセルを半分に割る。色・濃さは同じ（赤・グレーにしない）。差は文字の太さだけ */
 .bandans{position:absolute;left:50%;bottom:calc(20px + var(--band) * .5);transform:translate(-50%,50%);pointer-events:none}
 .wave.live .bandans{pointer-events:auto}
-.pairwrap{position:relative;display:inline-block;margin-top:1.5em}
-.bandans .pairwrap{margin-top:0}
-.pairwrap .cap{position:absolute;left:0;right:0;bottom:100%;margin-bottom:.35em;text-align:center;font-size:.62em;font-weight:700;color:var(--sub);white-space:nowrap}
+.pairwrap{display:inline-block}
 .pair{display:flex;border-radius:999px;overflow:hidden;background:var(--t-btn)}
+/* 左＝Unfocused / Restless（細め）、右＝Focused / Rested（太く）。色・濃さは同じで、文字の太さだけで差をつける */
 .pair button{
-  font:inherit;font-weight:900;font-size:clamp(1.05rem,4.6vw,1.9rem);border:0;cursor:pointer;
+  font:inherit;font-weight:500;font-size:clamp(1.05rem,4.6vw,1.9rem);border:0;cursor:pointer;
   background:transparent;color:var(--t-ink);padding:.5em 1.1em;min-height:48px;white-space:nowrap;
 }
-.pair button + button{box-shadow:inset 1.5px 0 0 rgba(255,255,255,.35)}
+.pair button + button{font-weight:900;box-shadow:inset 1.5px 0 0 rgba(255,255,255,.35)}
 .pair button:focus-visible{outline:3px solid var(--sub);outline-offset:-3px}
 body[data-phase="break"] .bandbtn{opacity:0;pointer-events:none}
 .wave.jig{animation:jig 2s ease-out}
@@ -574,13 +573,13 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     render();
   }
 
-  // 二値のカプセル：見出し（cap）と、同じ重さの2つの半分。選ぶことが、そのまま進むこと
-  // showCap=false：見出しは画面に出さない（読み上げ用のグループ名だけ残す）。帯は波の形でマスクされ、上にはみ出す見出しが描かれないため
-  function pair(cap, a, b, showCap){
+  // 二値のカプセル：2つの半分。選ぶことが、そのまま進むこと
+  // 見出し（Done / Focus）は画面に出さない。読み上げ用のグループ名だけ残す。
+  // 並びは [Unfocused|Focused]・[Restless|Rested]（右の a は太く＝CSS の .pair button + button）
+  function pair(cap, a, b){
     const w = document.createElement('div'); w.className = 'pairwrap'; w.setAttribute('role','group'); w.setAttribute('aria-label', cap);
     const p = document.createElement('div'); p.className = 'pair';
     [a, b].forEach(([text, fn])=>{ const x = document.createElement('button'); x.textContent = text; x.addEventListener('click', fn); p.append(x); });
-    if(showCap !== false){ const c = document.createElement('span'); c.className = 'cap'; c.setAttribute('aria-hidden','true'); c.textContent = cap; w.append(c); }
     w.append(p); return w;
   }
   function button(text, fn, cls){
@@ -614,13 +613,13 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
       lt.textContent = taskLabel();
       setNote(TXT.restTime, true);
       const doneAs = kind => ()=>{ answer('focus', kind); startBreak(); };
-      $('bandAns').append(pair(TXT.doneHead, [TXT.focused, doneAs(KIND.focusDoneFocused)], [TXT.unfocused, doneAs(KIND.focusDoneUnfocused)], false));
+      $('bandAns').append(pair(TXT.doneHead, [TXT.unfocused, doneAs(KIND.focusDoneUnfocused)], [TXT.focused, doneAs(KIND.focusDoneFocused)]));
       document.title = TXT.restTime;
     }else if(p==='toFocus'){
       lt.textContent = TXT.backTime;
       setNote(TXT.next + taskLabel(), true);
       const restedAs = kind => ()=>{ answer('break', kind); startFocus(); };
-      act.append(pair(TXT.focusHead, [TXT.rested, restedAs(KIND.breakDoneRested)], [TXT.restless, restedAs(KIND.breakDoneRestless)]));
+      act.append(pair(TXT.focusHead, [TXT.restless, restedAs(KIND.breakDoneRestless)], [TXT.rested, restedAs(KIND.breakDoneRested)]));
       act.append(button(TXT.endHere, stop, 'ghost'));
       document.title = TXT.backTime;
     }
