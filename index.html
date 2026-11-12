@@ -301,42 +301,65 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     labelChanged:'label_changed', memo:'memo',
     pause:'pause', resume:'resume', stop:'stop', debugJump:'debug_jump'
   });
-  // 画面の文言。静的なものは data-t / data-tp / data-ta（本文／placeholder／aria-label）で HTML に流し込む。
-  const TXT = {
-    appName:'Timelet', defaultTask:'集中する',
-    idlePlaceholder:'いま集中すること', idleHint:'書かなくてもはじめられます',
-    start:n=>'はじめる（'+n+'分）',
-    rest:'ひとやすみする', endHere:'ここでおわる',
-    // 二値（渚さんが決めた文言。日本語のときも英語のまま）。見出しは収まらなければ外す
-    doneHead:'Done', focused:'Focused', unfocused:'Unfocused',
-    focusHead:'Focus', rested:'Rested', restless:'Restless',
-    restName:'ひとやすみ', restTime:'ひとやすみの時間', backTime:'もどる時間',
-    soonRest:'もうすぐひとやすみ', soonBack:'もうすぐもどる時間',
-    paused:'一時停止中', pausedTitle:'停止中', next:'つぎ：',
-    ext:n=>'+'+n+'分', ariaExt:n=>n+'分のばす',
-    extNote:(n,sum,ext)=>'+'+ext+'分 × '+n+'・合計'+sum+'分',   // 回数がしきい値以上のとき、補助の文字で事実だけ
-    ariaEdit:'集中することを変更', ariaSettings:'設定', ariaPause:'一時停止', ariaResume:'再開', ariaStop:'おわる', ariaInterrupt:'中断',
-    setTitle:'設定', setFocus:'集中（分）', setBreak:'ひとやすみ（分）', setExt:'「あと少しだけ」（分）',
-    setExtNote:'「+分」の回数を知らせる（回）',
-    setBreath:'ひとやすみ中の深呼吸ガイド', setSound:'音', setDevice:'端末名',
-    copyLog:'履歴をコピー', copyPrev:'前回ぶんをもう一度', jump:'残り3分へ', fs:'全画面', close:'閉じる',
-    copied:n=>n+'行コピーしました', copyNone:'新しい行はありません', copyFail:'コピーできませんでした',
-    memoPlaceholder:'メモ', memoSend:'記録', memoSent:'記録しました',
-    // 履歴の詳細（読む人のために、画面を英語にしても日本語のまま）
-    log:{
-      stageFocus:'集中', stageBreak:'休憩',
-      // 集中の段階の行には、書いた時点の名前（labelText。空なら既定の「集中する」）を ({名前}) で付ける
-      label:name=>'('+name+')',
-      labelChanged:name=>name,
-      memo:(state,last,body)=>'状態='+state+(last ? ' 直前の集中開始='+last : '')+' : '+body,   // 例: 状態=focus 直前の集中開始=10:35 : 本文
-      focusStart:(m,name)=>m+'分 '+TXT.log.label(name),
-      extend:(stage,n,sum,ext,name)=>'+'+ext+'分 '+stage+' '+n+'回目 計'+sum+'分'+(name ? ' '+TXT.log.label(name) : ''),
-      timeup:'予定終了', timeupFocus:name=>'予定終了 '+TXT.log.label(name),
-      done:(hhmm,late,name)=>'終了'+hhmm+' +'+late+'分'+(name ? ' '+TXT.log.label(name) : ''),
-      breakStart:m=>m+'分',
-      focusInterrupt:(m,name)=>'集中'+m+'分で中断 '+TXT.log.label(name), breakInterrupt:m=>'休憩'+m+'分で中断',
-      resume:m=>'停止'+m+'分', debugJump:'残り3分へ'
-    }
+  // 画面の文言（切り替え：下の LANG の1行）。静的なものは data-t / data-tp / data-ta（本文／placeholder／aria-label）で HTML に流し込む。
+  // 英語は 09_en-table.md の「英語の提案」。渚さんの校閲を反映するまでは LANG='ja' のまま（画面は変わらない）。
+  const LANG = 'ja';   // 'ja' | 'en'
+  // 二値の文言は、渚さんが決めたもの。日本語のときも英語のまま（ja・en 共通）
+  const BIN = { doneHead:'Done', focused:'Focused', unfocused:'Unfocused', focusHead:'Focus', rested:'Rested', restless:'Restless' };
+  const TXT_SET = {
+    ja: Object.assign({
+      appName:'Timelet', defaultTask:'集中する',
+      idlePlaceholder:'いま集中すること', idleHint:'書かなくてもはじめられます',
+      start:n=>'はじめる（'+n+'分）',
+      rest:'ひとやすみする', endHere:'ここでおわる',
+      restName:'ひとやすみ', restTime:'ひとやすみの時間', backTime:'もどる時間',
+      soonRest:'もうすぐひとやすみ', soonBack:'もうすぐもどる時間',
+      paused:'一時停止中', pausedTitle:'停止中', next:'つぎ：',
+      ext:n=>'+'+n+'分', ariaExt:n=>n+'分のばす',
+      extNote:(n,sum,ext)=>'+'+ext+'分 × '+n+'・合計'+sum+'分',   // 回数がしきい値以上のとき、補助の文字で事実だけ
+      ariaEdit:'集中することを変更', ariaSettings:'設定', ariaPause:'一時停止', ariaResume:'再開', ariaStop:'おわる', ariaInterrupt:'中断',
+      setTitle:'設定', setFocus:'集中（分）', setBreak:'ひとやすみ（分）', setExt:'「あと少しだけ」（分）',
+      setExtNote:'「+分」の回数を知らせる（回）',
+      setBreath:'ひとやすみ中の深呼吸ガイド', setSound:'音', setDevice:'端末名',
+      copyLog:'履歴をコピー', copyPrev:'前回ぶんをもう一度', jump:'残り3分へ', fs:'全画面', close:'閉じる',
+      copied:n=>n+'行コピーしました', copyNone:'新しい行はありません', copyFail:'コピーできませんでした',
+      memoPlaceholder:'メモ', memoSend:'記録', memoSent:'記録しました'
+    }, BIN),
+    en: Object.assign({
+      appName:'Timelet', defaultTask:'集中する',   // 既定の名前は履歴にも入るため、日本語のまま（要判断）
+      idlePlaceholder:'What are you focusing on?', idleHint:'Optional — you can just start',
+      start:n=>'Start ('+n+' min)',
+      rest:'Take a break', endHere:'End here',
+      restName:'Break', restTime:'Time for a break', backTime:'Time to focus',
+      soonRest:'Break coming up', soonBack:'Focus coming up',
+      paused:'Paused', pausedTitle:'Paused', next:'Next: ',
+      ext:n=>'+'+n+' min', ariaExt:n=>'Extend by '+n+' min',
+      extNote:(n,sum,ext)=>'+'+ext+' min × '+n+' · total '+sum+' min',
+      ariaEdit:'Change what you focus on', ariaSettings:'Settings', ariaPause:'Pause', ariaResume:'Resume', ariaStop:'End', ariaInterrupt:'Cut short',
+      setTitle:'Settings', setFocus:'Focus (min)', setBreak:'Break (min)', setExt:'“Just a bit more” (min)',
+      setExtNote:'Note after this many extensions',
+      setBreath:'Breathing guide during breaks', setSound:'Sound', setDevice:'Device name',
+      copyLog:'Copy history', copyPrev:'Copy last batch again', jump:'Jump to 3 min left', fs:'Fullscreen', close:'Close',
+      copied:n=>'Copied '+n+(n===1 ? ' line' : ' lines'), copyNone:'No new lines', copyFail:'Couldn’t copy',
+      memoPlaceholder:'Note', memoSend:'Log', memoSent:'Logged'
+    }, BIN)
+  };
+  const TXT = TXT_SET[LANG];
+  document.documentElement.lang = LANG;
+  // 履歴の詳細（読む人のために、LANG に関係なく日本語のまま）。種類の名前（KIND）とも別
+  const LOG = {
+    stageFocus:'集中', stageBreak:'休憩',
+    // 集中の段階の行には、書いた時点の名前（labelText。空なら既定の「集中する」）を ({名前}) で付ける
+    label:name=>'('+name+')',
+    labelChanged:name=>name,
+    memo:(state,last,body)=>'状態='+state+(last ? ' 直前の集中開始='+last : '')+' : '+body,   // 例: 状態=focus 直前の集中開始=10:35 : 本文
+    focusStart:(m,name)=>m+'分 '+LOG.label(name),
+    extend:(stage,n,sum,ext,name)=>'+'+ext+'分 '+stage+' '+n+'回目 計'+sum+'分'+(name ? ' '+LOG.label(name) : ''),
+    timeup:'予定終了', timeupFocus:name=>'予定終了 '+LOG.label(name),
+    done:(hhmm,late,name)=>'終了'+hhmm+' +'+late+'分'+(name ? ' '+LOG.label(name) : ''),
+    breakStart:m=>m+'分',
+    focusInterrupt:(m,name)=>'集中'+m+'分で中断 '+LOG.label(name), breakInterrupt:m=>'休憩'+m+'分で中断',
+    resume:m=>'停止'+m+'分', debugJump:'残り3分へ'
   };
   const GRACE = 3*60000;   // 時間が来てから、この間に答えが来れば「答えた」扱いで1行にまとめる
   // ======================================================================
@@ -385,7 +408,7 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     const p = store.get('tl-pending', null);
     if(S.due) S.due.open = false;
     if(!p) return;
-    logAdd(p.stage==='focus' ? KIND.focusTimeup : KIND.breakTimeup, p.stage==='focus' ? TXT.log.timeupFocus(p.name) : TXT.log.timeup, p.end);
+    logAdd(p.stage==='focus' ? KIND.focusTimeup : KIND.breakTimeup, p.stage==='focus' ? LOG.timeupFocus(p.name) : LOG.timeup, p.end);
     store.set('tl-pending', null);
   }
   // 答え（focus_done:* / break_done:*）。stage は 'focus' か 'break'、kind は二値のどちらかの種類名
@@ -395,7 +418,7 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     if(now - due.end > GRACE) flushPending();   // 3分超：先に「時間が来た」行
     else { due.open = false; store.set('tl-pending', null); }
     logAdd(kind,
-           TXT.log.done(hm(due.end), Math.round((now - due.end)/60000), stage==='focus' ? due.name : ''), now);
+           LOG.done(hm(due.end), Math.round((now - due.end)/60000), stage==='focus' ? due.name : ''), now);
     S.due = null;
   }
   // 実際に経過した分（一時停止の時間は除く・四捨五入）
@@ -481,18 +504,18 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
   function startFocus(){
     S.extN = 0; S.extMin = 0;
     begin('focus', cfg.focus);
-    logAdd(KIND.focusStart, TXT.log.focusStart(cfg.focus, taskLabel()));
+    logAdd(KIND.focusStart, LOG.focusStart(cfg.focus, taskLabel()));
   }
   function startBreak(){
     S.extN = 0; S.extMin = 0;
     begin('break', cfg.brk);
-    logAdd(KIND.breakStart, TXT.log.breakStart(cfg.brk));
+    logAdd(KIND.breakStart, LOG.breakStart(cfg.brk));
   }
   function startFromIdle(){ S.task = $('task').value; store.set('tl-task', S.task); startFocus(); }
   // +5分の記録。stage は 'focus' か 'break'
   function logExtend(stage){
     S.extN++; S.extMin += cfg.ext;
-    logAdd(KIND.extend, TXT.log.extend(stage==='focus' ? TXT.log.stageFocus : TXT.log.stageBreak, S.extN, S.extMin, cfg.ext, stage==='focus' ? taskLabel() : ''));
+    logAdd(KIND.extend, LOG.extend(stage==='focus' ? LOG.stageFocus : LOG.stageBreak, S.extN, S.extMin, cfg.ext, stage==='focus' ? taskLabel() : ''));
   }
   // +5分：回数の制限なし。集中・休憩・時間が来た画面のどこでも
   function extendNow(){
@@ -514,13 +537,13 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
   // 休憩中の中断：新しい集中を始める（直後に focus_start）
   function interruptBreak(){
     flushPending();
-    logAdd(KIND.breakInterrupt, TXT.log.breakInterrupt(elapsedMin()));
+    logAdd(KIND.breakInterrupt, LOG.breakInterrupt(elapsedMin()));
     startFocus();
   }
   // 集中中の中断：休憩に入る（帯のボタンの途中押し）
   function interruptFocus(){
     flushPending();
-    logAdd(KIND.focusInterrupt, TXT.log.focusInterrupt(elapsedMin(), taskLabel()));
+    logAdd(KIND.focusInterrupt, LOG.focusInterrupt(elapsedMin(), taskLabel()));
     startBreak();
   }
   function togglePause(){
@@ -532,7 +555,7 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
       logAdd(KIND.pause, '');
     }else{
       S.end = now + S.pausedLeft; S.pausedLeft = null; S.seg = now; body.classList.remove('paused');
-      logAdd(KIND.resume, TXT.log.resume(Math.round((now - S.pauseAt)/60000)));
+      logAdd(KIND.resume, LOG.resume(Math.round((now - S.pauseAt)/60000)));
     }
     render();
   }
@@ -695,7 +718,7 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     if(!body.classList.contains('editing')) return;
     const before = taskLabel();
     S.task = lt.textContent.replace(/\s+/g,' ').trim().slice(0,40);
-    if(S.phase==='focus' && taskLabel() !== before) logAdd(KIND.labelChanged, TXT.log.labelChanged(taskLabel()));   // 名前が変わったときだけ
+    if(S.phase==='focus' && taskLabel() !== before) logAdd(KIND.labelChanged, LOG.labelChanged(taskLabel()));   // 名前が変わったときだけ
     store.set('tl-task', S.task); $('task').value = S.task;
     lt.contentEditable = 'false';
     body.classList.remove('editing'); hideLater(); render();
@@ -753,7 +776,7 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
   $('panel').addEventListener('click', e=>{ if(e.target.id==='panel') closePanel(); });
   $('jump').addEventListener('click', ()=>{
     if(S.phase!=='focus' && S.phase!=='break'){ S.task = $('task').value || S.task; store.set('tl-task', S.task); startFocus(); }
-    logAdd(KIND.debugJump, TXT.log.debugJump);
+    logAdd(KIND.debugJump, LOG.debugJump);
     const now = Date.now();
     if(S.pausedLeft==null) S.act += now - S.seg;   // 動いていたぶんを確定し、
     S.seg = now;                                    // 一時停止中に押された場合も、ここから走らせ直す
@@ -809,7 +832,7 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     if(!body) return;
     const starts = store.get('tl-log', []).filter(r => r.kind === KIND.focusStart);
     const last = starts.length ? hm(starts[starts.length-1].t) : '';   // 直前の集中開始（まだなければ省く）
-    logAdd(KIND.memo, TXT.log.memo(MEMO_STATE[S.phase], last, body));  // 保留（時間が来たところの答え）には触らない
+    logAdd(KIND.memo, LOG.memo(MEMO_STATE[S.phase], last, body));  // 保留（時間が来たところの答え）には触らない
     memo.value = ''; store.set('tl-memo-draft', '');
     toast(TXT.memoSent);
   }
