@@ -262,6 +262,7 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     focusTimeup:'focus_timeup', breakTimeup:'break_timeup',
     focusDone:'focus_done', breakStart:'break_start', breakDone:'break_done',
     focusInterrupt:'focus_interrupt', breakInterrupt:'break_interrupt',
+    labelChanged:'label_changed',
     pause:'pause', resume:'resume', stop:'stop', debugJump:'debug_jump'
   });
   // 画面の文言。静的なものは data-t / data-tp / data-ta（本文／placeholder／aria-label）で HTML に流し込む。
@@ -284,12 +285,15 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     // 履歴の詳細（読む人のために、画面を英語にしても日本語のまま）
     log:{
       stageFocus:'集中', stageBreak:'休憩',
-      focusStart:(m,name)=>m+'分 '+name,
-      extend:(stage,n,sum,ext)=>'+'+ext+'分 '+stage+' '+n+'回目 計'+sum+'分',
-      timeup:'予定終了',
-      done:(hhmm,late,name)=>'終了'+hhmm+' +'+late+'分'+(name ? ' '+name : ''),
+      // 集中の段階の行には、書いた時点の名前（labelText。空なら既定の「集中する」）を ({名前}) で付ける
+      label:name=>'('+name+')',
+      labelChanged:name=>name,
+      focusStart:(m,name)=>m+'分 '+TXT.log.label(name),
+      extend:(stage,n,sum,ext,name)=>'+'+ext+'分 '+stage+' '+n+'回目 計'+sum+'分'+(name ? ' '+TXT.log.label(name) : ''),
+      timeup:'予定終了', timeupFocus:name=>'予定終了 '+TXT.log.label(name),
+      done:(hhmm,late,name)=>'終了'+hhmm+' +'+late+'分'+(name ? ' '+TXT.log.label(name) : ''),
       breakStart:m=>m+'分',
-      focusInterrupt:m=>'集中'+m+'分で中断', breakInterrupt:m=>'休憩'+m+'分で中断',
+      focusInterrupt:(m,name)=>'集中'+m+'分で中断 '+TXT.log.label(name), breakInterrupt:m=>'休憩'+m+'分で中断',
       resume:m=>'停止'+m+'分', debugJump:'残り3分へ'
     }
   };
@@ -340,7 +344,7 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     const p = store.get('tl-pending', null);
     if(S.due) S.due.open = false;
     if(!p) return;
-    logAdd(p.stage==='focus' ? KIND.focusTimeup : KIND.breakTimeup, TXT.log.timeup, p.end);
+    logAdd(p.stage==='focus' ? KIND.focusTimeup : KIND.breakTimeup, p.stage==='focus' ? TXT.log.timeupFocus(p.name) : TXT.log.timeup, p.end);
     store.set('tl-pending', null);
   }
   // 答え（focus_done / break_done）。stage は 'focus' か 'break'
@@ -447,7 +451,7 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
   // +5分の記録。stage は 'focus' か 'break'
   function logExtend(stage){
     S.extN++; S.extMin += cfg.ext;
-    logAdd(KIND.extend, TXT.log.extend(stage==='focus' ? TXT.log.stageFocus : TXT.log.stageBreak, S.extN, S.extMin, cfg.ext));
+    logAdd(KIND.extend, TXT.log.extend(stage==='focus' ? TXT.log.stageFocus : TXT.log.stageBreak, S.extN, S.extMin, cfg.ext, stage==='focus' ? taskLabel() : ''));
   }
   // +5分：回数の制限なし。集中・休憩・時間が来た画面のどこでも
   function extendNow(){
@@ -475,7 +479,7 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
   // 集中中の中断：休憩に入る（帯のボタンの途中押し）
   function interruptFocus(){
     flushPending();
-    logAdd(KIND.focusInterrupt, TXT.log.focusInterrupt(elapsedMin()));
+    logAdd(KIND.focusInterrupt, TXT.log.focusInterrupt(elapsedMin(), taskLabel()));
     startBreak();
   }
   function togglePause(){
@@ -636,7 +640,9 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
   }
   function endEdit(){
     if(!body.classList.contains('editing')) return;
+    const before = taskLabel();
     S.task = lt.textContent.replace(/\s+/g,' ').trim().slice(0,40);
+    if(S.phase==='focus' && taskLabel() !== before) logAdd(KIND.labelChanged, TXT.log.labelChanged(taskLabel()));   // 名前が変わったときだけ
     store.set('tl-task', S.task); $('task').value = S.task;
     lt.contentEditable = 'false';
     body.classList.remove('editing'); hideLater(); render();
