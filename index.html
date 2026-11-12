@@ -158,7 +158,7 @@ body.ui .icon{opacity:1}
 .icon svg{width:24px;height:24px}
 .gear{top:calc(10px + env(safe-area-inset-top,0px));right:12px}
 .ctl{top:calc(10px + env(safe-area-inset-top,0px));display:none;background:var(--line)}
-.ctl.pause{left:12px}.ctl.stop{left:64px}
+.ctl.pause{left:12px}.ctl.stop{left:64px}.ctl.interrupt{left:116px}
 body[data-phase="focus"] .ctl,body[data-phase="break"] .ctl{display:grid}
 body:not(.ui) .ctl{opacity:0;pointer-events:none}
 
@@ -224,6 +224,10 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
 <button id="stop" class="icon ctl stop" data-ta="ariaStop">
   <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
 </button>
+<!-- 中断：集中中 → 休憩へ／休憩中 → 新しい集中へ -->
+<button id="interrupt" class="icon ctl interrupt" data-ta="ariaInterrupt">
+  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5.5v13l9-6.5z"/><rect x="16.5" y="5.5" width="2.5" height="13" rx="1"/></svg>
+</button>
 
 <div id="panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="ptitle">
   <div class="card">
@@ -231,6 +235,7 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     <label class="row"><span data-t="setFocus"></span><input id="cFocus" type="number" min="1" max="60" inputmode="numeric"></label>
     <label class="row"><span data-t="setBreak"></span><input id="cBreak" type="number" min="1" max="30" inputmode="numeric"></label>
     <label class="row"><span data-t="setExt"></span><input id="cExt" type="number" min="1" max="15" inputmode="numeric"></label>
+    <label class="row"><span data-t="setExtNote"></span><input id="cExtNote" type="number" min="1" max="99" inputmode="numeric"></label>
     <label class="row"><span data-t="setBreath"></span><input id="cBreath" type="checkbox"></label>
     <label class="row"><span data-t="setSound"></span><input id="cSound" type="checkbox"></label>
     <label class="row"><span data-t="setDevice"></span><input id="cDevice" type="text" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
@@ -269,8 +274,10 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     soonRest:'もうすぐひとやすみ', soonBack:'もうすぐもどる時間',
     paused:'一時停止中', pausedTitle:'停止中', next:'つぎ：',
     ext:n=>'+'+n+'分', ariaExt:n=>n+'分のばす',
-    ariaEdit:'集中することを変更', ariaSettings:'設定', ariaPause:'一時停止', ariaResume:'再開', ariaStop:'おわる',
+    extNote:(n,sum,ext)=>'+'+ext+'分 × '+n+'・合計'+sum+'分',   // 回数がしきい値以上のとき、補助の文字で事実だけ
+    ariaEdit:'集中することを変更', ariaSettings:'設定', ariaPause:'一時停止', ariaResume:'再開', ariaStop:'おわる', ariaInterrupt:'中断',
     setTitle:'設定', setFocus:'集中（分）', setBreak:'ひとやすみ（分）', setExt:'「あと少しだけ」（分）',
+    setExtNote:'「+分」の回数を知らせる（回）',
     setBreath:'ひとやすみ中の深呼吸ガイド', setSound:'音', setDevice:'端末名',
     copyLog:'履歴をコピー', copyPrev:'前回ぶんをもう一度', jump:'残り3分へ', fs:'全画面', close:'閉じる',
     copied:n=>n+'行コピーしました', copyNone:'新しい行はありません', copyFail:'コピーできませんでした',
@@ -295,9 +302,9 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     get(k,d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
     set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
   };
-  const cfg = Object.assign({focus:25, brk:5, ext:5, sound:true, breath:true, device:''}, store.get('tl-cfg', {}));
+  const cfg = Object.assign({focus:25, brk:5, ext:5, extNote:5, sound:true, breath:true, device:''}, store.get('tl-cfg', {}));
   const S = {
-    phase:'idle', task: store.get('tl-task',''), end:0, total:1, pausedLeft:null, extUsed:false, lastM:null, soon:false,
+    phase:'idle', task: store.get('tl-task',''), end:0, total:1, pausedLeft:null, lastM:null, soon:false, c30:false,
     extN:0, extMin:0,        // いまの段階の +5分 の回数・合計（新しい開始で0に戻す）
     act:0, seg:0, pauseAt:0, // 実際に経過した時間（一時停止を除く）の集計用
     due:null                 // 時間が来たときの {stage, end, name, open}。open=答えも3分経過も、まだ
@@ -410,7 +417,7 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
   function remind(on){
     clearInterval(remindT); remindT = null;
     if(on) remindT = setInterval(()=>{
-      chime(false);
+      if(!S.extN) chime(false);   // +5分を押した段階では、終了後の音の繰り返しは止める（動きは現行のまま）
       restart($('clockwrap'),'puff');
       if(S.phase==='toBreak') restart($('wave'),'jig');
     }, 30000);
@@ -420,14 +427,14 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     unlockAudio();
     flushPending(); S.due = null;   // 次の開始：答えが来ないままだった「時間が来た」を確定させる
     const now = Date.now();
-    S.end = now + minutes*60000; S.total = minutes; S.pausedLeft = null; S.lastM = null; S.soon = false;
+    S.end = now + minutes*60000; S.total = minutes; S.pausedLeft = null; S.lastM = null; S.soon = false; S.c30 = false;
     S.act = 0; S.seg = now;
     body.classList.remove('paused');
     setPhase(kind); wake(true);
   }
   // 新しい集中の開始（「はじめる」・休憩から戻る・休憩中の中断）
   function startFocus(){
-    S.extUsed = false; S.extN = 0; S.extMin = 0;
+    S.extN = 0; S.extMin = 0;
     begin('focus', cfg.focus);
     logAdd(KIND.focusStart, TXT.log.focusStart(cfg.focus, taskLabel()));
   }
@@ -442,12 +449,28 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     S.extN++; S.extMin += cfg.ext;
     logAdd(KIND.extend, TXT.log.extend(stage==='focus' ? TXT.log.stageFocus : TXT.log.stageBreak, S.extN, S.extMin, cfg.ext));
   }
+  // +5分：回数の制限なし。集中・休憩・時間が来た画面のどこでも
   function extendNow(){
-    if(S.extUsed) return;
+    const p = S.phase;
+    if(S.pausedLeft!=null || p==='idle') return;
+    flushPending();   // 時間が来ていたなら、先に「時間が来た」行
+    if(p==='focus' || p==='break'){
+      S.end += cfg.ext*60000; S.total += cfg.ext; S.lastM = null; S.soon = false; S.c30 = false;
+      logExtend(p);
+      render();
+    }else{
+      // 時間が来た画面：同じ段階が続く（回数は続き、0に戻さない）
+      const stage = p==='toBreak' ? 'focus' : 'break';
+      const carry = S.act + (S.end - S.seg);   // 予定終了までの実経過を引き継ぐ（中断の「N分」のため）
+      logExtend(stage);
+      begin(stage, cfg.ext); S.act = carry;
+    }
+  }
+  // 休憩中の中断：新しい集中を始める（直後に focus_start）
+  function interruptBreak(){
     flushPending();
-    S.extUsed = true; S.end += cfg.ext*60000; S.total += cfg.ext; S.lastM = null; S.soon = false;
-    logExtend(S.phase==='break' ? 'break' : 'focus');
-    render();
+    logAdd(KIND.breakInterrupt, TXT.log.breakInterrupt(elapsedMin()));
+    startFocus();
   }
   // 集中中の中断：休憩に入る（帯のボタンの途中押し）
   function interruptFocus(){
@@ -487,9 +510,12 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     const b = document.createElement('button'); b.className = 'btn' + (cls ? ' '+cls : ''); b.textContent = text;
     b.addEventListener('click', fn); return b;
   }
-  function noteWithExt(text, fn){
-    const n = $('note'); n.replaceChildren(document.createTextNode(text));
-    if(!S.extUsed){ const b = document.createElement('button'); b.className = 'mini'; b.textContent = TXT.ext(cfg.ext); b.setAttribute('aria-label', TXT.ariaExt(cfg.ext)); b.addEventListener('click', fn); n.append(b); }
+  // 補助の文字：状態の文／+5分の回数（しきい値以上のとき。事実だけ・色や強調なし）／+5分ボタン
+  function setNote(text, withExt){
+    const n = $('note'); n.replaceChildren();
+    if(text) n.append(document.createTextNode(text));
+    if(S.extN >= cfg.extNote){ const s = document.createElement('span'); s.textContent = TXT.extNote(S.extN, S.extMin, cfg.ext); n.append(s); }
+    if(withExt){ const b = document.createElement('button'); b.className = 'mini'; b.textContent = TXT.ext(cfg.ext); b.setAttribute('aria-label', TXT.ariaExt(cfg.ext)); b.addEventListener('click', extendNow); n.append(b); }
   }
 
   function render(){
@@ -503,19 +529,17 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
       document.title = TXT.appName;
     }else if(p==='focus'){
       if(!body.classList.contains('editing')) lt.textContent = taskLabel();
-      if(paused) note.textContent = TXT.paused;
-      else if(S.soon) noteWithExt(TXT.soonRest, extendNow);
+      setNote(paused ? TXT.paused : S.soon ? TXT.soonRest : '', !paused);
     }else if(p==='break'){
       lt.textContent = TXT.restName;
-      if(paused) note.textContent = TXT.paused;
-      else if(S.soon) note.textContent = TXT.soonBack;
+      setNote(paused ? TXT.paused : S.soon ? TXT.soonBack : '', !paused);
     }else if(p==='toBreak'){
       lt.textContent = taskLabel();
-      noteWithExt(TXT.restTime, ()=>{ flushPending(); S.extUsed = true; logExtend('focus'); begin('focus', cfg.ext); });
+      setNote(TXT.restTime, true);
       document.title = TXT.restTime;
     }else if(p==='toFocus'){
       lt.textContent = TXT.backTime;
-      note.textContent = TXT.next + taskLabel();
+      setNote(TXT.next + taskLabel(), true);
       act.append(button(TXT.back, ()=>{ answer('break'); startFocus(); }));
       act.append(button(TXT.endHere, stop, 'ghost'));
       document.title = TXT.backTime;
@@ -546,6 +570,8 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
         if(m===1){ chime(true); if(p==='focus') restart($('wave'),'jig'); }
       }
       S.lastM = m;
+      // +5分を押した段階だけ、終了30秒前にも小さな音（1分前は上の m===1）
+      if(S.extN > 0 && l <= 30000 && !S.c30){ S.c30 = true; chime(true); }
       const soon = l <= 60000;
       if(soon !== S.soon){ S.soon = soon; render(); return; }
     }
@@ -629,6 +655,10 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
   });
   $('task').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.isComposing){ e.preventDefault(); startFromIdle(); } });
   $('pause').addEventListener('click', togglePause);
+  $('interrupt').addEventListener('click', ()=>{
+    if(body.classList.contains('editing')) lt.blur();
+    if(S.phase==='focus') interruptFocus(); else if(S.phase==='break') interruptBreak();
+  });
   $('stop').addEventListener('click', stop);
   window.addEventListener('keydown', e=>{
     if($('panel').classList.contains('open')){ if(e.key==='Escape') closePanel(); return; }
@@ -643,7 +673,7 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
   // settings
   const clamp = (v,a,b,d) => { v = parseInt(v,10); return isNaN(v) ? d : Math.min(b, Math.max(a, v)); };
   function openPanel(){
-    $('cFocus').value = cfg.focus; $('cBreak').value = cfg.brk; $('cExt').value = cfg.ext;
+    $('cFocus').value = cfg.focus; $('cBreak').value = cfg.brk; $('cExt').value = cfg.ext; $('cExtNote').value = cfg.extNote;
     $('cSound').checked = cfg.sound; $('cBreath').checked = cfg.breath; $('cDevice').value = cfg.device || '';
     $('panel').classList.add('open'); $('close').focus();
   }
@@ -651,6 +681,7 @@ body:not(.ui) .ctl{opacity:0;pointer-events:none}
     cfg.focus = clamp($('cFocus').value,1,60,25);
     cfg.brk = clamp($('cBreak').value,1,30,5);
     cfg.ext = clamp($('cExt').value,1,15,5);
+    cfg.extNote = clamp($('cExtNote').value,1,99,5);
     cfg.sound = $('cSound').checked; cfg.breath = $('cBreath').checked;
     cfg.device = $('cDevice').value.trim();
     body.classList.toggle('breath', cfg.breath);
